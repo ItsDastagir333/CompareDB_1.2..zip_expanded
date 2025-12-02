@@ -42,7 +42,7 @@ None
 
 -> Proceeding with data comparison for table: emp
 
-===== DATA COMPARISON FOR TABLE: emp =====
+===== DATA COMPARISON FOR TABLE: emp VS emp =====
 Mismatches found:
 Row 1 | Column: empName | (DB A: abc | DB B: abcd)
 

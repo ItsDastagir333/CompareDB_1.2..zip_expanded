@@ -1,13 +1,5 @@
 package ae.cbd.compareDB.ui;
 
-import ae.cbd.compareDB.CompareDbApplication;
-import javafx.application.Application;
-import javafx.geometry.Insets;
-import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.layout.GridPane;
-import javafx.stage.Stage;
-
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -16,6 +8,21 @@ import java.util.Map;
 
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
+
+import ae.cbd.compareDB.CompareDbApplication;
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.GridPane;
+import javafx.stage.Stage;
 
 public class ApplicationUI extends Application {
 	
@@ -88,24 +95,77 @@ public class ApplicationUI extends Application {
         grid.add(new Label("DB B Type:"), 0, 9);
         grid.add(dbBType, 1, 9);
 
-        grid.add(submitButton, 1, 10);
+        // Compare mode toggle (off = Whole DB, on = Specific Table)
+        grid.add(new Label("Compare Mode:"), 0, 10);
+        ToggleButton tbSpecificTable = new ToggleButton("Specific Table");
+        grid.add(tbSpecificTable, 1, 10);
+
+        // Table name fields for DB A and DB B (hidden unless Specific Table selected)
+        Label tableALabel = new Label("Table Name (DB A):");
+        TextField tableAField = new TextField();
+        Label tableBLabel = new Label("Table Name (DB B):");
+        TextField tableBField = new TextField();
+
+        tableALabel.setVisible(false);
+        tableALabel.setManaged(false);
+        tableAField.setVisible(false);
+        tableAField.setManaged(false);
+        tableBLabel.setVisible(false);
+        tableBLabel.setManaged(false);
+        tableBField.setVisible(false);
+        tableBField.setManaged(false);
+
+        grid.add(tableALabel, 0, 11);
+        grid.add(tableAField, 1, 11);
+        grid.add(tableBLabel, 0, 12);
+        grid.add(tableBField, 1, 12);
+
+        // Move submit button down
+        grid.add(submitButton, 1, 13);
+
+        // Show/hide table name fields when toggle changes
+        tbSpecificTable.selectedProperty().addListener((obs, oldV, newV) -> {
+            boolean isTable = Boolean.TRUE.equals(newV);
+            tableALabel.setVisible(isTable);
+            tableALabel.setManaged(isTable);
+            tableAField.setVisible(isTable);
+            tableAField.setManaged(isTable);
+            tableBLabel.setVisible(isTable);
+            tableBLabel.setManaged(isTable);
+            tableBField.setVisible(isTable);
+            tableBField.setManaged(isTable);
+        });
 
         submitButton.setOnAction(e -> {
+            // If Specific Table is selected, validate both table names
+            if (tbSpecificTable.isSelected()) {
+                if (tableAField.getText() == null || tableAField.getText().trim().isEmpty()
+                        || tableBField.getText() == null || tableBField.getText().trim().isEmpty()) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING, "Please provide table names for both DB A and DB B.", ButtonType.OK);
+                    alert.showAndWait();
+                    return;
+                }
+            }
+
+            String compareMode = tbSpecificTable.isSelected() ? "TABLE" : "ALL";
+
             saveProperties(
                 dbAUrl.getText(), dbAUsername.getText(), dbAPassword.getText(), dbAName.getText(), dbAType.getValue(),
-                dbBUrl.getText(), dbBUsername.getText(), dbBPassword.getText(), dbBName.getText(), dbBType.getValue()
+                dbBUrl.getText(), dbBUsername.getText(), dbBPassword.getText(), dbBName.getText(), dbBType.getValue(),
+                compareMode, tableAField.getText(), tableBField.getText()
             );
             // Start Spring Boot AFTER saving properties
             startSpringBoot();
         });
 
-        Scene scene = new Scene(grid, 450, 450);
+        Scene scene = new Scene(grid, 500, 520);
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
     private void saveProperties(String dbAUrl, String dbAUsername, String dbAPassword, String dbAName, String dbAType,
-                                String dbBUrl, String dbBUsername, String dbBPassword, String dbBName, String dbBType) {
+                                String dbBUrl, String dbBUsername, String dbBPassword, String dbBName, String dbBType,
+                                String compareMode, String tableAName, String tableBName) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(CONFIG_FILE_PATH))) {
             // Writing database A properties
             writer.write("dbA.url=" + dbAUrl);
@@ -134,6 +194,20 @@ public class ApplicationUI extends Application {
             writer.newLine();
             writer.write("dbB.driver=" + DRIVER_MAP.getOrDefault(dbBType, ""));
             writer.newLine();
+
+            // Write compare mode and optional table names
+            writer.write("compare.mode=" + compareMode);
+            writer.newLine();
+            if ("TABLE".equalsIgnoreCase(compareMode)) {
+                if (tableAName != null && !tableAName.trim().isEmpty()) {
+                    writer.write("dbA.table=" + tableAName.trim());
+                    writer.newLine();
+                }
+                if (tableBName != null && !tableBName.trim().isEmpty()) {
+                    writer.write("dbB.table=" + tableBName.trim());
+                    writer.newLine();
+                }
+            }
 
             // Writing persistent configurations
             for (String config : PERSISTENT_CONFIG) {

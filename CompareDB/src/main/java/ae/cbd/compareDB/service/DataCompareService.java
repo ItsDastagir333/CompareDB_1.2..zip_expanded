@@ -10,12 +10,12 @@ public class DataCompareService {
 
     private static final int BATCH_SIZE = 1000;
 
-    public String compareTableData(Connection connA, Connection connB, String tableName) throws SQLException {
+    public String compareTableData(Connection connA, Connection connB, String tableAName, String tableBName) throws SQLException {
         StringBuilder output = new StringBuilder();
-        output.append("\n===== DATA COMPARISON FOR TABLE: ").append(tableName).append(" =====\n");
+        output.append("\n===== DATA COMPARISON FOR TABLE: ").append(tableAName).append(" VS ").append(tableAName).append(" =====\n");
 
-        String queryA = "SELECT * FROM " + tableName + " LIMIT ? OFFSET ?";
-        String queryB = "SELECT * FROM " + tableName + " LIMIT ? OFFSET ?";
+        String queryA = "SELECT * FROM " + tableAName + " LIMIT ? OFFSET ?";
+        String queryB = "SELECT * FROM " + tableBName + " LIMIT ? OFFSET ?";
 
         int offset = 0;
         boolean hasMoreData = true;
@@ -33,14 +33,14 @@ public class DataCompareService {
                 try (ResultSet rsA = stmtA.executeQuery();
                      ResultSet rsB = stmtB.executeQuery()) {
 
-                    hasMoreData = compareResultSets(rsA, rsB, mismatches, tableName);
+                    hasMoreData = compareResultSets(rsA, rsB, mismatches);
                 }
             }
             offset += BATCH_SIZE;
         }
 
         if (mismatches.isEmpty()) {
-            output.append("No differences found in table ").append(tableName).append("\n");
+            output.append("No differences found in table ").append(tableAName).append(" & ").append(tableAName).append("\n");
         } else {
             output.append("Mismatches found:\n");
             for (String mismatch : mismatches) {
@@ -52,7 +52,7 @@ public class DataCompareService {
     }
 
 
-    private boolean compareResultSets(ResultSet rsA, ResultSet rsB, List<String> mismatches, String tableName) throws SQLException {
+    private boolean compareResultSets(ResultSet rsA, ResultSet rsB, List<String> mismatches) throws SQLException {
         boolean hasMoreData = false;
         int rowNumber = 1;
 

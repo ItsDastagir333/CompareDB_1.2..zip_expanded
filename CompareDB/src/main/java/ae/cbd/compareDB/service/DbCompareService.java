@@ -1,19 +1,26 @@
-/* This is DB Compare Service class which Schematically compares the Databases enlisted by the user
- * 
- * Input: 
- */
-
+// ...existing code...
 package ae.cbd.compareDB.service;
 
-import ae.cbd.compareDB.config.DatabaseConfig;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import javax.sql.DataSource;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
-import java.io.*;
-import java.sql.*;
-import java.util.*;
+import ae.cbd.compareDB.config.DatabaseConfig;
 
 @Service
 public class DbCompareService {
@@ -50,8 +57,23 @@ public class DbCompareService {
                 writer.write("Database A: " + dbAName + "\n");
                 writer.write("Database B: " + dbBName + "\n\n");
 
-                // Compare tables
-                compareTables(metaA, metaB, connA, connB, writer);
+                String compareMode = dbConf.getCompareMode(); // expected "ALL" or "TABLE"
+                if (compareMode != null && "TABLE".equalsIgnoreCase(compareMode)) {
+                    String tableA = dbConf.getDbATable();
+                    String tableB = dbConf.getDbBTable();
+
+                    if (tableA == null || tableA.trim().isEmpty() || tableB == null || tableB.trim().isEmpty()) {
+                        writer.write("ERROR: compare.mode=TABLE but one or both table names are missing in configuration.\n");
+                        return;
+                    }
+
+                    // Compare just the specified table pair
+                    compareSpecificTable(metaA, metaB, connA, connB, writer, tableA.trim(), tableB.trim());
+
+                } else {
+                    // Full database comparison
+                    compareTables(metaA, metaB, connA, connB, writer);
+                }
             } catch (SQLException e) {
                 writer.write("ERROR: Database connection error - " + e.getMessage() + "\n");
             }
@@ -82,6 +104,66 @@ public class DbCompareService {
         compareColumns(metaA, metaB, commonTables, connA, connB, writer);
     }
 
+    /**
+     * Compare a single pair of tables (tableA in DB A vs tableB in DB B).
+     * This supports cases where names are the same or different.
+     */
+    private void compareSpecificTable(DatabaseMetaData metaA, DatabaseMetaData metaB,
+                                      Connection connA, Connection connB, BufferedWriter writer,
+                                      String tableA, String tableB) throws SQLException, IOException {
+        writer.write("===== SPECIFIC TABLE COMPARISON =====\n");
+        writer.write("Comparing DB A table: " + tableA + "  <=>  DB B table: " + tableB + "\n\n");
+
+        // Check existence
+        Set<String> tablesA = getTables(metaA, dbConf.getDbAName());
+        Set<String> tablesB = getTables(metaB, dbConf.getDbBName());
+
+        boolean existsA = tablesA.contains(tableA);
+        boolean existsB = tablesB.contains(tableB);
+
+        if (!existsA) {
+            writer.write("Table " + tableA + " does not exist in Database A.\n");
+        }
+        if (!existsB) {
+            writer.write("Table " + tableB + " does not exist in Database B.\n");
+        }
+        if (!existsA || !existsB) {
+            return;
+        }
+
+        // Column comparison between tableA and tableB
+        Map<String, String> columnMapA = getColumnDetails(metaA, dbConf.getDbAName(), tableA);
+        Map<String, String> columnMapB = getColumnDetails(metaB, dbConf.getDbBName(), tableB);
+
+        writer.write("Columns in " + tableA + " (A): " + columnMapA.keySet() + "\n");
+        writer.write("Columns in " + tableB + " (B): " + columnMapB.keySet() + "\n");
+
+        Set<String> missingColumnsB = new HashSet<>(columnMapA.keySet());
+        missingColumnsB.removeAll(columnMapB.keySet());
+        writer.write("Columns in " + tableA + " (A) but missing in " + tableB + " (B):\n" + formatSet(missingColumnsB) + "\n");
+
+        Set<String> missingColumnsA = new HashSet<>(columnMapB.keySet());
+        missingColumnsA.removeAll(columnMapA.keySet());
+        writer.write("Columns in " + tableB + " (B) but missing in " + tableA + " (A):\n" + formatSet(missingColumnsA) + "\n");
+
+        Set<String> differentTypeColumns = new HashSet<>();
+        for (String column : columnMapA.keySet()) {
+            if (columnMapB.containsKey(column) && !columnMapA.get(column).equals(columnMapB.get(column))) {
+                differentTypeColumns.add(column + " (A: " + columnMapA.get(column) + " | B: " + columnMapB.get(column) + ")");
+            }
+        }
+        writer.write("Columns with Different Data Types:\n" + formatSet(differentTypeColumns) + "\n");
+
+        // If no structural differences, perform data comparison
+        if (missingColumnsA.isEmpty() && missingColumnsB.isEmpty() && differentTypeColumns.isEmpty()) {
+            writer.write("-> Proceeding with data comparison for table pair: " + tableA + " <=> " + tableB + "\n");
+            String comparisonResult = dataCompareService.compareTableData(connA, connB, tableA, tableB);
+            writer.write(comparisonResult + "\n");
+            writer.write("\n");
+        }
+        writer.write("---------------------------------------------------\n");
+    }
+
     private void compareColumns(DatabaseMetaData metaA, DatabaseMetaData metaB, Set<String> commonTables, Connection connA, Connection connB, BufferedWriter writer) throws SQLException, IOException {
         writer.write("===== COLUMN COMPARISON =====\n");
 
@@ -110,7 +192,7 @@ public class DbCompareService {
             // If no structural differences, perform data comparison
             if (missingColumnsA.isEmpty() && missingColumnsB.isEmpty() && differentTypeColumns.isEmpty()) {
                 writer.write("-> Proceeding with data comparison for table: " + table + "\n");
-                String comparisonResult = dataCompareService.compareTableData(connA, connB, table);
+                String comparisonResult = dataCompareService.compareTableData(connA, connB, table, table);
                 writer.write(comparisonResult + "\n");
                 writer.write("\n");
             }
@@ -141,6 +223,5 @@ public class DbCompareService {
     private String formatSet(Set<String> set) {
         return set.isEmpty() ? "None\n" : String.join(", ", set) + "\n";
     }
-    
 
 }

@@ -10,6 +10,7 @@ dbB.password=87654321
 dbB.name=testDb2
 dbB.type=SQL Server
 dbB.driver=com.microsoft.sqlserver.jdbc.SQLServerDriver
+compare.mode=ALL
 spring.application.name=CompareDB
 spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
 spring.data.jpa.repositories.enabled=false

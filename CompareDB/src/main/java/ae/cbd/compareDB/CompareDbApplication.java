@@ -41,7 +41,6 @@ public class CompareDbApplication implements CommandLineRunner {
             // Define the output file path
             String BASE_PATH = System.getProperty("user.dir");
             String outputFilePath = BASE_PATH + "/dbOutput.txt";
-//            String outputFilePath = "C:/Users/dastagir.mulani/Documents/Project Work/dbOutput.txt";
 
             // Run the comparison and save results
             dbCompareService.compareSchemasAndWriteToFile(outputFilePath);

@@ -23,12 +23,16 @@ public class DatabaseConfig {
     private String dbAUsername;
     private String dbAPassword;
     private String dbADriver;
+    private String dbATable;
 
     private String dbBUrl;
     private String dbBName;
     private String dbBUsername;
     private String dbBPassword;
     private String dbBDriver;
+    private String dbBTable;
+    
+    private String comparisonMode;
 
     public DatabaseConfig() {
         loadProperties();
@@ -51,12 +55,16 @@ public class DatabaseConfig {
             dbAUsername = properties.get("dbA.username");
             dbAPassword = properties.get("dbA.password");
             dbADriver = properties.get("dbA.driver");
-
+            dbATable = properties.get("dbA.table");
+            
             dbBUrl = properties.get("dbB.url");
             dbBName = properties.get("dbB.name");
             dbBUsername = properties.get("dbB.username");
             dbBPassword = properties.get("dbB.password");
             dbBDriver = properties.get("dbB.driver");
+            dbBTable = properties.get("dbB.table");
+            
+            comparisonMode = properties.get("compare.mode");
 
         } catch (IOException e) {
             System.err.println("Error loading properties from dbInput.txt: " + e.getMessage());
@@ -72,13 +80,17 @@ public class DatabaseConfig {
     public String getDbAUsername() { return dbAUsername; }
     public String getDbAPassword() { return dbAPassword; }
     public String getDbADriver() { return dbADriver; }
+    public String getDbATable() { return dbATable; }
 
     public String getDbBUrl() { return dbBUrl; }
     public String getDbBName() { return dbBName; }
     public String getDbBUsername() { return dbBUsername; }
     public String getDbBPassword() { return dbBPassword; }
     public String getDbBDriver() { return dbBDriver; }
-
+    public String getDbBTable() { return dbBTable; }
+    
+    public String getCompareMode() { return comparisonMode; }
+    
     @Bean("dataSourceA")
     public DataSource dataSourceA() {
         DriverManagerDataSource dataSourceA = new DriverManagerDataSource();
